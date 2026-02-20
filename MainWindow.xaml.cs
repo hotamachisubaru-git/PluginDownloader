@@ -35,6 +35,7 @@ public partial class MainWindow : Window
         _httpClient = CreateHttpClient();
         _providers = new List<IPluginProvider>
         {
+            new PaperProvider(_httpClient),
             new ModrinthProvider(_httpClient),
             new SpigetProvider(_httpClient)
         };
@@ -74,14 +75,29 @@ public partial class MainWindow : Window
     {
         var dialog = new OpenFileDialog
         {
-            Title = "更新対象のプラグインJarを選択",
+            Title = "更新対象のJarを選択 (Plugin / Paper)",
             Filter = "Jar Files (*.jar)|*.jar",
             Multiselect = true
         };
 
         if (dialog.ShowDialog(this) == true)
         {
-            AddPluginFiles(dialog.FileNames);
+            AddJarFiles(dialog.FileNames);
+        }
+    }
+
+    private void AddPaperButton_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "更新対象のPaper本体Jarを選択",
+            Filter = "Paper Jar (paper-*.jar)|paper-*.jar|Jar Files (*.jar)|*.jar",
+            Multiselect = true
+        };
+
+        if (dialog.ShowDialog(this) == true)
+        {
+            AddPaperFiles(dialog.FileNames);
         }
     }
 
@@ -94,7 +110,7 @@ public partial class MainWindow : Window
         }
 
         var jarFiles = Directory.EnumerateFiles(selectedFolder, "*.jar", SearchOption.TopDirectoryOnly);
-        AddPluginFiles(jarFiles);
+        AddJarFiles(jarFiles);
     }
 
     private void RemoveSelectedButton_Click(object sender, RoutedEventArgs e)
@@ -134,7 +150,7 @@ public partial class MainWindow : Window
         {
             System.Windows.MessageBox.Show(
                 this,
-                "左ペインに更新対象のプラグインJarを追加してください。",
+                "左ペインに更新対象のPlugin/Paper Jarを追加してください。",
                 "PluginDownloader",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
@@ -195,7 +211,7 @@ public partial class MainWindow : Window
         }
 
         var jarFiles = ExpandDroppedItems(droppedItems).ToList();
-        AddPluginFiles(jarFiles);
+        AddJarFiles(jarFiles);
     }
 
     private async Task ExecuteUpdateAsync(string outputDirectory)
@@ -322,7 +338,7 @@ public partial class MainWindow : Window
         }
 
         var detail = errors.Count == 0
-            ? "配布元が見つからないか、自動ダウンロードに対応していません"
+            ? "更新ソースが見つからないか、自動ダウンロードに対応していません"
             : string.Join(" / ", errors);
 
         return new UpdateResultEntry(
@@ -383,7 +399,7 @@ public partial class MainWindow : Window
         return client;
     }
 
-    private void AddPluginFiles(IEnumerable<string> files)
+    private void AddJarFiles(IEnumerable<string> files)
     {
         var addedCount = 0;
         var duplicateCount = 0;
@@ -406,7 +422,7 @@ public partial class MainWindow : Window
             PluginEntry entry;
             try
             {
-                entry = PluginJarReader.Read(file);
+                entry = TryReadPluginOrPaper(file);
             }
             catch (Exception ex)
             {
@@ -424,6 +440,69 @@ public partial class MainWindow : Window
 
         UpdateDropHint();
         SetStatus($"追加: {addedCount}件 (重複{duplicateCount}, 非対応{skippedCount})");
+    }
+
+    private void AddPaperFiles(IEnumerable<string> files)
+    {
+        var addedCount = 0;
+        var duplicateCount = 0;
+        var skippedCount = 0;
+
+        foreach (var file in files)
+        {
+            if (!File.Exists(file) || !IsJarFile(file))
+            {
+                skippedCount++;
+                continue;
+            }
+
+            if (_plugins.Any(item => string.Equals(item.FilePath, file, StringComparison.OrdinalIgnoreCase)))
+            {
+                duplicateCount++;
+                continue;
+            }
+
+            PluginEntry entry;
+            try
+            {
+                entry = PaperJarReader.Read(file);
+            }
+            catch (Exception ex)
+            {
+                entry = new PluginEntry(
+                    file,
+                    Path.GetFileNameWithoutExtension(file),
+                    "不明",
+                    string.Empty,
+                    $"解析失敗: {ShortMessage(ex.Message)}");
+            }
+
+            _plugins.Add(entry);
+            addedCount++;
+        }
+
+        UpdateDropHint();
+        SetStatus($"Paper追加: {addedCount}件 (重複{duplicateCount}, 非対応{skippedCount})");
+    }
+
+    private static PluginEntry TryReadPluginOrPaper(string filePath)
+    {
+        try
+        {
+            return PluginJarReader.Read(filePath);
+        }
+        catch (Exception pluginEx)
+        {
+            try
+            {
+                return PaperJarReader.Read(filePath);
+            }
+            catch (Exception paperEx)
+            {
+                throw new InvalidDataException(
+                    $"Plugin/Paperとして解析できません ({ShortMessage(pluginEx.Message)} / {ShortMessage(paperEx.Message)})");
+            }
+        }
     }
 
     private void LoadSettings()
@@ -487,6 +566,7 @@ public partial class MainWindow : Window
     private void ToggleControls(bool isEnabled)
     {
         AddPluginsButton.IsEnabled = isEnabled;
+        AddPaperButton.IsEnabled = isEnabled;
         AddFolderButton.IsEnabled = isEnabled;
         RemoveSelectedButton.IsEnabled = isEnabled;
         ClearAllButton.IsEnabled = isEnabled;

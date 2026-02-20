@@ -25,6 +25,11 @@ public sealed class SpigetProvider : IPluginProvider
 
     public async Task<ProviderLookupResult?> TryGetLatestAsync(PluginEntry plugin, CancellationToken cancellationToken)
     {
+        if (plugin.TargetKind != PluginTargetKind.Plugin)
+        {
+            return null;
+        }
+
         if (TryExtractResourceId(plugin.Website, out var resourceId))
         {
             var byWebsite = await GetLookupByResourceIdAsync(resourceId, cancellationToken);

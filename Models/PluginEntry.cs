@@ -14,18 +14,36 @@ public sealed class PluginEntry : BindableBase
         string pluginName,
         string currentVersion,
         string website,
-        string detectionStatus)
+        string detectionStatus,
+        PluginTargetKind targetKind = PluginTargetKind.Plugin,
+        string? paperMinecraftVersion = null,
+        int? paperBuild = null)
     {
         FilePath = filePath;
         _pluginName = pluginName;
         _currentVersion = currentVersion;
         _website = website;
         _detectionStatus = detectionStatus;
+        TargetKind = targetKind;
+        PaperMinecraftVersion = paperMinecraftVersion;
+        PaperBuild = paperBuild;
     }
 
     public string FilePath { get; }
 
     public string FileName => Path.GetFileName(FilePath);
+
+    public PluginTargetKind TargetKind { get; }
+
+    public string TargetKindText => TargetKind switch
+    {
+        PluginTargetKind.Paper => "Paper",
+        _ => "Plugin"
+    };
+
+    public string? PaperMinecraftVersion { get; }
+
+    public int? PaperBuild { get; }
 
     public string PluginName
     {

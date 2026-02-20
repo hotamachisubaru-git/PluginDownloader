@@ -24,6 +24,11 @@ public sealed class ModrinthProvider : IPluginProvider
 
     public async Task<ProviderLookupResult?> TryGetLatestAsync(PluginEntry plugin, CancellationToken cancellationToken)
     {
+        if (plugin.TargetKind != PluginTargetKind.Plugin)
+        {
+            return null;
+        }
+
         if (TryExtractProjectIdOrSlug(plugin.Website, out var websiteProject))
         {
             var websiteLookup = await GetLatestVersionForProjectAsync(
